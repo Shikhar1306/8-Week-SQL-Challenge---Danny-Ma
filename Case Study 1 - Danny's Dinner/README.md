@@ -1,4 +1,4 @@
-# 🍜 Case Study #1: Danny's Diner 
+# Case Study #1: Danny's Diner 
 
 
 ![image](https://8weeksqlchallenge.com/images/case-study-designs/1.png)
