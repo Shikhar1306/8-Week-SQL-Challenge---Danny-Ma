@@ -157,4 +157,59 @@ select datename(weekday, dateadd(day,2,order_time)) order_day, count(order_id) o
 from #customer_orders
 group by datename(weekday, dateadd(day,2,order_time));
 
+--B. Runner and Customer Experience
+
+--1 How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
+
+set datefirst 5;
+
+select datepart(week, registration_date) signup_week, count(runner_id) runners_count
+from runners
+group by datepart(week, registration_date);
+
+set datefirst 7
+
+--2. What was the average time in minutes it took for each runner to arrive at the Pizza Runner HQ to pickup the order?
+
+with time_to_arrive_cte as
+(
+	select co.order_id, ro.runner_id, co.order_time, ro.pickup_time, datediff(minute, co.order_time, ro.pickup_time) time_to_arrive
+	from #customer_orders co
+	inner join #runner_orders ro
+	on co.order_id = ro.order_id and ro.cancellation = ''
+	group by co.order_id, ro.runner_id, co.order_time, ro.pickup_time
+)
+select runner_id, avg(time_to_arrive) avg_time_to_arrive
+from time_to_arrive_cte
+group by runner_id;
+
+--3. Is there any relationship between the number of pizzas and how long the order takes to prepare?
+
+with time_to_prepare_cte as
+(
+	select co.order_id, count(co.pizza_id) pizza_count ,co.order_time, ro.pickup_time, datediff(minute, co.order_time, ro.pickup_time) time_to_prepare
+	from #customer_orders co
+	inner join #runner_orders ro
+	on co.order_id = ro.order_id 
+	where ro.cancellation = ''
+	group by co.order_id, co.order_time, ro.pickup_time
+)
+select pizza_count, avg(time_to_prepare) avg_time_to_prepare
+from time_to_prepare_cte
+group by pizza_count;
+
+--4. What was the average distance travelled for each customer?
+
+select co.customer_id, round(avg(ro.distance),2) avg_distance_travelled
+from #customer_orders co
+inner join #runner_orders ro
+on co.order_id = ro.order_id 
+where ro.cancellation = ''
+group by co.customer_id
+
+
+
+
+
+
 
