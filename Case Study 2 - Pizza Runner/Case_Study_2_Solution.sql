@@ -157,6 +157,8 @@ select datename(weekday, dateadd(day,2,order_time)) order_day, count(order_id) o
 from #customer_orders
 group by datename(weekday, dateadd(day,2,order_time));
 
+
+---------------------------------------------------------------------------------------------------------------------
 --B. Runner and Customer Experience
 
 --1 How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
@@ -205,11 +207,107 @@ from #customer_orders co
 inner join #runner_orders ro
 on co.order_id = ro.order_id 
 where ro.cancellation = ''
-group by co.customer_id
+group by co.customer_id;
 
+--5. What was the difference between the longest and shortest delivery times for all orders?
 
+select max(duration) - min(duration) difference_delivery_time
+from #runner_orders
+where cancellation = '';
 
+--6. What was the average speed for each runner for each delivery and do you notice any trend for these values?
 
+select runner_id, order_id, distance, duration, (duration * 1.0 / 60) duration_hrs, round(distance / (duration * 1.0/60),2) speed
+from #runner_orders
+where cancellation = ''
+order by runner_id;
 
+--7. What is the successful delivery percentage for each runner?
+
+with successful_deliveries_cte as
+(
+	select runner_id, count(order_id) total_deliveries_assigned, 
+	sum(case when cancellation = '' then 1 else 0 end) successful_deliveries
+	from #runner_orders
+	group by runner_id
+)
+select *, 100 * successful_deliveries / total_deliveries_assigned successful_delivery_pct
+from successful_deliveries_cte;
+
+-----------------------------------------------------------------------------------------------------------
+--C. Ingredient Optimisation
+
+--1. What are the standard ingredients for each pizza?
+
+with toppings_cte as
+(
+	select a.pizza_id, b.value topping
+	from pizza_recipes a
+	cross apply string_split(a.toppings, N',') b
+),
+pizza_cte as
+(
+	select pn.pizza_id, pn.pizza_name, tc.topping, pt.topping_name
+	from pizza_names pn
+	inner join toppings_cte tc
+	on pn.pizza_id = tc.pizza_id
+	inner join pizza_toppings pt
+	on tc.topping = pt.topping_id
+)
+select pizza_id, pizza_name, string_agg(topping_name,', ')  standard_ingredients
+from pizza_cte
+group by pizza_id, pizza_name;
+
+--2. What was the most commonly added extra?
+
+with extras_cte as
+(
+	select a.order_id, b.value extras
+	from #customer_orders a
+	cross apply string_split(a.extras,N',') b
+),
+extras_count_cte as
+(
+	select extras, count(extras) extras_count,
+	dense_rank() over(order by count(extras) desc) rnk
+	from extras_cte
+	where extras != ''
+	group by extras
+)
+select pt.topping_name most_used_extra, ecc.extras_count times_used_as_extra
+from extras_count_cte ecc
+inner join pizza_toppings pt
+on ecc.extras = pt.topping_id
+where ecc.rnk = 1;
+
+--3. What was the most common exclusion?
+
+with exclusion_cte as
+(
+	select a.order_id, b.value exclusion
+	from #customer_orders a
+	cross apply string_split(a.exclusions, N',') b
+),
+exclusion_count_cte as
+(
+	select exclusion, count(exclusion) exclusion_count,
+	dense_rank() over(order by count(exclusion) desc) rnk
+	from exclusion_cte
+	where exclusion != ''
+	group by exclusion
+)
+select pt.topping_name most_common_exclusion, ecc.exclusion_count times_excluded
+from exclusion_count_cte ecc
+inner join pizza_toppings pt
+on ecc.exclusion = pt.topping_id
+where ecc.rnk = 1;
+
+/* 
+4. Generate an order item for each record in the customers_orders table in the format of one of the following:
+Meat Lovers
+Meat Lovers - Exclude Beef
+Meat Lovers - Extra Bacon
+Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers
+*/
 
 
